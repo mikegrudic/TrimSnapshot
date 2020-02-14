@@ -5,18 +5,21 @@
 # ACHTUNG ACHTUNG: This uses every available thread. Don't run it on the head node :P
 
 from sys import argv
+from time import sleep
 import h5py
 import numpy as np
 import multiprocessing 
+from os.path import getsize
 from multiprocessing import Pool
 from shutil import move
 from os import system
 nproc = multiprocessing.cpu_count()
 
-stuff_to_skip = "Metallicity", "DivergenceOfMagneticField", "DivBcleaningFunctionPhi", "DivBcleaningFunctionGradPhi", "StarFormationRate", "BH_Dist"
+stuff_to_skip = "Metallicity", "DivergenceOfMagneticField", "DivBcleaningFunctionPhi", "DivBcleaningFunctionGradPhi", "StarFormationRate", "BH_Dist", "TurbulenceDissipation", "Vorticity", "TurbulenceDriving"
+types_to_skip = [] # add e.g. "PartType0" to this list if you want to DELETE that particle type (careful with this!)
 
 def CompressFile(f):
-    print(f)
+    print(f, getsize(f)/1e9)
     if "_t.hdf5" in f:
         system("rm " + f)
         return
@@ -27,6 +30,7 @@ def CompressFile(f):
     F.copy("Header", F2)
     for k in F.keys():
         if k=="Header": continue
+        if k in types_to_skip: continue
         F2.create_group(k)
         for k2 in F[k].keys():
             if k2 in stuff_to_skip: continue
@@ -37,6 +41,8 @@ def CompressFile(f):
     move(f2name, f)
     
 if __name__ == "__main__":
-    filenames = (f for f in argv[1:])
-    Pool(nproc).map(CompressFile, filenames)
-
+    filenames = [f for f in argv[1:]]
+    sizes = np.array([getsize(f) for f in argv[1:]])
+    filenames = np.array(filenames)[sizes.argsort()][::-1]
+    
+    Pool(nproc).map(CompressFile, (f for f in filenames),chunksize=1)
